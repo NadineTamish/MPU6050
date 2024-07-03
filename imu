@@ -1,0 +1,94 @@
+#include <Wire.h>
+#include <MPU6050.h>
+
+MPU6050 mpu;
+
+const float accelThreshold = 0.02; // Threshold for ignoring small accelerations
+const float gyroThreshold = 0.02;  // Threshold for ignoring small rotations
+const float dt = 0.01; // Integration time step (10 ms)
+
+float pitch = 0;
+float roll = 0;
+float velocityX = 0;
+float velocityY = 0;
+float velocityZ = 0;
+float positionX = 0;
+float positionY = 0;
+float positionZ = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  // Initialize MPU6050
+  Serial.println("Initializing MPU6050...");
+  while (!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_16G)) {
+    Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
+    delay(500);
+  }
+
+  // Calibrate gyroscope. The calibration must be at rest.
+  Serial.println("Calibrating gyroscope...");
+  mpu.calibrateGyro();
+
+  // Set threshold sensitivity. Default 3.
+  mpu.setThreshold(3);
+  
+  Serial.println("MPU6050 initialized successfully!");
+}
+
+void loop() {
+  Vector normAccel = mpu.readNormalizeAccel();
+  Vector normGyro = mpu.readNormalizeGyro();
+
+  // Calculate pitch and roll from accelerometer data
+  pitch = atan2(normAccel.YAxis, normAccel.ZAxis) * 180/M_PI;
+  roll = atan2(-normAccel.XAxis, sqrt(normAccel.YAxis * normAccel.YAxis + normAccel.ZAxis * normAccel.ZAxis)) * 180/M_PI;
+
+  // Integrate gyroscope data to get angles
+  if (abs(normGyro.XAxis) > gyroThreshold) {
+    roll += normGyro.XAxis * dt;
+  }
+  if (abs(normGyro.YAxis) > gyroThreshold) {
+    pitch -= normGyro.YAxis * dt;
+  }
+
+  // Integrate accelerometer data to get velocity
+  if (abs(normAccel.XAxis) > accelThreshold) {
+    velocityX += normAccel.XAxis * dt * 9.81;
+  }
+  if (abs(normAccel.YAxis) > accelThreshold) {
+    velocityY += normAccel.YAxis * dt * 9.81;
+  }
+  if (abs(normAccel.ZAxis) > accelThreshold) {
+    velocityZ += normAccel.ZAxis * dt * 9.81;
+  }
+
+  // Integrate velocity data to get position
+  positionX += velocityX * dt;
+  positionY += velocityY * dt;
+  positionZ += velocityZ * dt;
+
+  Serial.print("Pitch: ");
+  Serial.print(pitch);
+  Serial.print(" Roll: ");
+  Serial.println(roll);
+
+  Serial.print("Velocity: ");
+  Serial.print("X: ");
+  Serial.print(velocityX);
+  Serial.print(" Y: ");
+  Serial.print(velocityY);
+  Serial.print(" Z: ");
+  Serial.println(velocityZ);
+
+  Serial.print("Position: ");
+  Serial.print("X: ");
+  Serial.print(positionX);
+  Serial.print(" Y: ");
+  Serial.print(positionY);
+  Serial.print(" Z: ");
+  Serial.println(positionZ);
+
+  delay(10); // 10 ms delay to match the integration time step
+}
